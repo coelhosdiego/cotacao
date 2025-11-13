@@ -63,11 +63,14 @@ const transporter = nodemailer.createTransport({
 // --- Rota de Login ---
 app.post('/api/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
-            return res.status(401).json({ message: 'Credenciais inválidas.' });
-        }
-        const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
-        res.status(200).json({ token, message: 'Login bem-sucedido.' });
+       const { email, password } = req.body;
+
+    return res.status(401).json({ message: 'Credenciais inválidas.' });
+}
+
+const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+
+res.status(200).json({ token, message: 'Login bem-sucedido.' });
     } catch (error) {
         console.error('Erro na rota de login:', error);
         res.status(500).json({ message: 'Erro interno do servidor.' });
