@@ -53,6 +53,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET; // CORREÇÃO 1: Adicionado JWT_SECRET da variável de ambiente
 
 // Credenciais de admin (você vai usar diego.coelho@souenergy.com.br)
 const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
@@ -135,7 +136,7 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
             qty40hc
         } = req.body;
         
-        // Validação básica
+        // CORREÇÃO 2: Validação básica
             return res.status(400).json({ message: 'Please fill all fields' });
         }
         
