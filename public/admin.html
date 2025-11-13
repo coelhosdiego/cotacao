@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Cotações</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+        }
+        
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-box h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .login-box p {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .login-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        .error-message {
+            display: none;
+            background: #f44336;
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        /* PAINEL ADMIN */
+        .admin-container {
+            display: none;
+            min-height: 100vh;
+            background: #f5f7fa;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .content {
+            padding: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card .number {
+            color: #667eea;
+            font-size: 32px;
+            font-weight: 700;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #f5f7fa;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
+        }
+        
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        .row-details {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .row-details a {
+            color: #667eea;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .row-details a:hover {
+            text-decoration: underline;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .modal-header h2 {
+            color: #333;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+        }
+        
+        .modal-close:hover {
+            color: #333;
+        }
+        
+        .modal-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .modal-body.full {
+            grid-template-columns: 1fr;
+        }
+        
+        .field {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .field label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .field value {
+            color: #555;
+            font-size: 14px;
+            padding: 8px 0;
+        }
+        
+        .field img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state svg {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        @media (max-width: 768px) {
+            .modal-body {
+                grid-template-columns: 1fr;
+            }
+            
+            table {
+                font-size: 12px;
+            }
+            
+            th, td {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- LOGIN -->
+    <div class="login-container" id="loginContainer">
+        <div class="login-box">
+            <h1>🔐 Acesso Restrito</h1>
+            <p>Digite suas credenciais para acessar o painel</p>
+            <div class="error-message" id="loginError"></div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required value="diego.coelho@souenergy.com.br">
+                </div>
+                <div class="form-group">
+                    <label for="password">Senha</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="login-btn">Entrar</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- PAINEL ADMIN -->
+    <div class="admin-container" id="adminContainer">
+        <div class="header">
+            <h1>📊 Painel de Cotações</h1>
+            <div class="user-info">
+                <span id="userEmail"></span>
+                <button class="logout-btn" onclick="logout()">Sair</button>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="toolbar">
+                <button class="btn btn-primary" onclick="reloadCotacoes()">🔄 Atualizar</button>
+                <button class="btn btn-primary" onclick="exportarExcel()">📊 Exportar Excel</button>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>Total de Cotações</h3>
+                    <div class="number" id="totalCotacoes">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Este Mês</h3>
+                    <div class="number" id="cotacoesJaneiro">0</div>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="cotacoesTable">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Empresa</th>
+                            <th>Produto</th>
+                            <th>FOB Price</th>
+                            <th>MOQ</th>
+                            <th>Lead Time</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cotacoesBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: #999;">Carregando...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MODAL DETALHES -->
+    <div class="modal" id="detailsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Detalhes da Cotação</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let currentUser = null;
+        let allCotacoes = [];
+        
+        // ===== LOGIN =====
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('token', data.token);
+                    currentUser = email;
+                    document.getElementById('userEmail').textContent = email;
+                    showAdmin();
+                    loadCotacoes();
+                } else {
+                    document.getElementById('loginError').textContent = data.message;
+                    document.getElementById('loginError').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erro login:', error);
+                document.getElementById('loginError').textContent = 'Erro de conexão';
+                document.getElementById('loginError').style.display = 'block';
+            }
+        });
+        
+        // ===== FUNÇÕES ADMIN =====
+        function showAdmin() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('adminContainer').style.display = 'block';
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            currentUser = null;
+            allCotacoes = [];
+            document.getElementById('loginContainer').style.display = 'flex';
+            document.getElementById('adminContainer').style.display = 'none';
+        }
+        
+        async function loadCotacoes() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_URL}/cotacoes`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.status === 401) {
+                    logout();
+                    return;
+                }
+                
+                const cotacoes = await response.json();
+                allCotacoes = cotacoes;
+                
+                // Atualizar stats
+                document.getElementById('totalCotacoes').textContent = cotacoes.length;
+                
+                const thisMonth = cotacoes.filter(c => {
+                    const date = new Date(c.dataCriacao);
+                    const now = new Date();
+                    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                }).length;
+                document.getElementById('cotacoesJaneiro').textContent = thisMonth;
+                
+                // Renderizar tabela
+                renderTable(cotacoes);
+            } catch (error) {
+                console.error('Erro ao carregar:', error);
+            }
+        }
+        
+        function renderTable(cotacoes) {
+            const tbody = document.getElementById('cotacoesBody');
+            
+            if (cotacoes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #999; padding: 40px;">Nenhuma cotação recebida ainda</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = cotacoes.map(c => `
+                <tr>
+                    <td>${new Date(c.dataCriacao).toLocaleDateString('pt-BR')}</td>
+                    <td>${c.companyName}</td>
+                    <td>${c.supplierModel}</td>
+                    <td>$${parseFloat(c.fobPrice).toFixed(2)}</td>
+                    <td>${c.moq}</td>
+                    <td>${c.deliveryTime} dias</td>
+                    <td>
+                        <div class="row-details">
+                            <a onclick="viewDetails('${c.id}')">👁️ Ver</a>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        async function viewDetails(cotacaoId) {
+            const cotacao = allCotacoes.find(c => c.id === cotacaoId);
+            if (!cotacao) return;
+            
+            const modal = document.getElementById('detailsModal');
+            const modalBody = document.getElementById('modalBody');
+            
+            let html = `
+                <div class="modal-body full">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <div class="field">
+                                <label>Empresa</label>
+                                <value>${cotacao.companyName}</value>
+                            </div>
+                            <div class="field">
+                                <label>Contato</label>
+                                <value>${cotacao.contactPerson}</value>
+                            </div>
+                            <div class="field">
+                                <label>Email</label>
+                                <value>${cotacao.email}</value>
+                            </div>
+                            <div class="field">
+                                <label>Produto</label>
+                                <value>${cotacao.supplierModel}</value>
+                            </div>
+                            <div class="field">
+                                <label>Potência</label>
+                                <value>${cotacao.power}W</value>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="field">
+                                <label>FOB Price</label>
+                                <value>$${parseFloat(cotacao.fobPrice).toFixed(2)}</value>
+                            </div>
+                            <div class="field">
+                                <label>MOQ</label>
+                                <value>${cotacao.moq}</value>
+                            </div>
+                            <div class="field">
+                                <label>Lead Time</label>
+                                <value>${cotacao.deliveryTime} dias</value>
+                            </div>
+                            <div class="field">
+                                <label>Quantidade em 40HC</label>
+                                <value>${cotacao.qty40hc}</value>
+                            </div>
+                            <div class="field">
+                                <label>Data de Recebimento</label>
+                                <value>${new Date(cotacao.dataCriacao).toLocaleString('pt-BR')}</value>
+                            </div>
+                        </div>
+                    </div>
+                    ${cotacao.imagemPath ? `<div class="field" style="grid-column: 1 / -1; margin-top: 20px;">
+                        <label>Foto do Produto</label>
+                        <img src="${API_URL}${cotacao.imagemPath}" style="max-width: 300px; margin-top: 10px;">
+                    </div>` : ''}
+                </div>
+            `;
+            
+            modalBody.innerHTML = html;
+            modal.classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('detailsModal').classList.remove('active');
+        }
+        
+        function reloadCotacoes() {
+            loadCotacoes();
+        }
+        
+        async function exportarExcel() {
+            const token = localStorage.getItem('token');
+            window.location.href = `${API_URL}/exportar-excel?token=${token}`;
+        }
+        
+        // ===== INICIALIZAÇÃO =====
+        const token = localStorage.getItem('token');
+        if (token) {
+            currentUser = document.getElementById('email').value;
+            showAdmin();
+            loadCotacoes();
+        }
+        
+        // Fechar modal ao clicar fora
+        document.getElementById('detailsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'detailsModal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

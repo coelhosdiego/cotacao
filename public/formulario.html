@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotação de Produtos - Souenergy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="email"],
+        input[type="number"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="number"]:focus,
+        input[type="date"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .three-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        input[type="radio"],
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .checkbox-item label {
+            margin: 0;
+            font-weight: 400;
+            cursor: pointer;
+        }
+        
+        input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        input[type="file"]::-webkit-file-upload-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-submit {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-submit:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-reset {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-reset:hover {
+            background: #e0e0e0;
+        }
+        
+        .success-message {
+            display: none;
+            background: #4caf50;
+            color: white;
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .error-message {
+            display: none;
+            background: #f44336;
+            color: white;
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .required {
+            color: #f44336;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        @media (max-width: 600px) {
+            .two-column,
+            .three-column {
+                grid-template-columns: 1fr;
+            }
+            
+            .checkbox-group {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Cotação de Produtos</h1>
+        <p class="subtitle">Preencha os dados abaixo para enviar sua cotação</p>
+        
+        <div class="success-message" id="successMessage">
+            ✅ Cotação enviada com sucesso! Obrigado!
+        </div>
+        <div class="error-message" id="errorMessage"></div>
+        
+        <form id="cotacaoForm" enctype="multipart/form-data">
+            
+            <!-- INFORMAÇÕES DO FORNECEDOR -->
+            <div class="section-title">👤 Informações do Fornecedor</div>
+            
+            <div class="form-group">
+                <label for="companyName">Nome da Empresa <span class="required">*</span></label>
+                <input type="text" id="companyName" name="companyName" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="contactPerson">Pessoa de Contato <span class="required">*</span></label>
+                <input type="text" id="contactPerson" name="contactPerson" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email <span class="required">*</span></label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <!-- PRODUTO -->
+            <div class="section-title">📦 Produto</div>
+            
+            <div class="form-group">
+                <label for="supplierModel">Modelo do Produto <span class="required">*</span></label>
+                <select id="supplierModel" name="supplierModel" required>
+                    <option value="">-- Selecione um produto --</option>
+                    <option value="Airfryer 5,5L 1500W">Airfryer 5,5L 1500W</option>
+                    <option value="Airfryer 3L 1000W">Airfryer 3L 1000W</option>
+                    <option value="Airfryer Oven 12L 1800W">Airfryer Oven 12L 1800W</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="productPicture">Foto do Produto <span class="required">*</span></label>
+                <input type="file" id="productPicture" name="productPicture" accept="image/*" required>
+            </div>
+            
+            <!-- ESPECIFICAÇÕES TÉCNICAS -->
+            <div class="section-title">⚡ Especificações Técnicas</div>
+            
+            <div class="three-column">
+                <div class="form-group">
+                    <label for="power">Potência (W) <span class="required">*</span></label>
+                    <input type="number" id="power" name="power" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="minTemp">Temp. Mínima (°C) <span class="required">*</span></label>
+                    <input type="number" id="minTemp" name="minTemp" step="0.1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="maxTemp">Temp. Máxima (°C) <span class="required">*</span></label>
+                    <input type="number" id="maxTemp" name="maxTemp" step="0.1" required>
+                </div>
+            </div>
+            
+            <div class="three-column">
+                <div class="form-group">
+                    <label for="qtyBaskets">Qtd. de Cestos <span class="required">*</span></label>
+                    <input type="number" id="qtyBaskets" name="qtyBaskets" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="basketVolume">Volume do Cesto (L) <span class="required">*</span></label>
+                    <input type="number" id="basketVolume" name="basketVolume" step="0.01" required>
+                </div>
+            </div>
+            
+            <div class="two-column">
+                <div class="form-group">
+                    <label>Cesto Removível? <span class="required">*</span></label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="radio" id="removableSim" name="removableBasket" value="Sim" required>
+                            <label for="removableSim">Sim</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="radio" id="removableNao" name="removableBasket" value="Não">
+                            <label for="removableNao">Não</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Janela de Visualização? <span class="required">*</span></label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="radio" id="windowSim" name="viewWindow" value="Sim" required>
+                            <label for="windowSim">Sim</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="radio" id="windowNao" name="viewWindow" value="Não">
+                            <label for="windowNao">Não</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PREÇO E LOGÍSTICA -->
+            <div class="section-title">💰 Preço e Logística</div>
+            
+            <div class="two-column">
+                <div class="form-group">
+                    <label for="fobPrice">Preço FOB <span class="required">*</span></label>
+                    <input type="number" id="fobPrice" name="fobPrice" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="fobCity">Cidade FOB <span class="required">*</span></label>
+                    <input type="text" id="fobCity" name="fobCity" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="paymentTerms">Termos de Pagamento <span class="required">*</span></label>
+                <input type="text" id="paymentTerms" name="paymentTerms" placeholder="Ex: 30% adiantado, 70% na entrega" required>
+            </div>
+            
+            <div class="two-column">
+                <div class="form-group">
+                    <label for="deliveryTime">Prazo de Entrega (dias) <span class="required">*</span></label>
+                    <input type="number" id="deliveryTime" name="deliveryTime" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="moq">MOQ (Quantidade Mínima) <span class="required">*</span></label>
+                    <input type="number" id="moq" name="moq" required>
+                </div>
+            </div>
+            
+            <!-- EMBALAGEM E CONTAINER -->
+            <div class="section-title">📦 Embalagem e Container</div>
+            
+            <div class="form-group">
+                <label for="cartonSize">Tamanho da Caixa (L x A x P em cm) <span class="required">*</span></label>
+                <input type="text" id="cartonSize" name="cartonSize" placeholder="Ex: 50 x 40 x 30" required>
+            </div>
+            
+            <div class="three-column">
+                <div class="form-group">
+                    <label for="qtyPerCarton">Qtd. por Caixa <span class="required">*</span></label>
+                    <input type="number" id="qtyPerCarton" name="qtyPerCarton" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="unitCbm">CBM Unitário <span class="required">*</span></label>
+                    <input type="number" id="unitCbm" name="unitCbm" step="0.0001" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="qty40hc">Qtd. em 40HC <span class="required">*</span></label>
+                    <input type="number" id="qty40hc" name="qty40hc" required>
+                </div>
+            </div>
+            
+            <!-- BOTÕES -->
+            <div class="button-group">
+                <button type="submit" class="btn-submit">✉️ Enviar Cotação</button>
+                <button type="reset" class="btn-reset">🔄 Limpar</button>
+            </div>
+            
+            <div class="loading" id="loading">
+                <span class="spinner"></span>
+                Enviando cotação...
+            </div>
+        </form>
+    </div>
+    
+    <script>
+        const form = document.getElementById('cotacaoForm');
+        const successMessage = document.getElementById('successMessage');
+        const errorMessage = document.getElementById('errorMessage');
+        const loading = document.getElementById('loading');
+        
+        // URL do seu servidor (será preenchida após deploy)
+        const API_URL = 'http://localhost:3000/api/cotacao';
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Validação básica
+            const fileInput = document.getElementById('productPicture');
+            if (!fileInput.files.length) {
+                showError('Por favor, selecione uma foto do produto');
+                return;
+            }
+            
+            loading.style.display = 'block';
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            try {
+                const formData = new FormData(form);
+                
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    successMessage.style.display = 'block';
+                    form.reset();
+                    setTimeout(() => {
+                        successMessage.style.display = 'none';
+                    }, 5000);
+                } else {
+                }
+            } catch (error) {
+                showError('Erro de conexão. Tente novamente.');
+                console.error('Erro:', error);
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
