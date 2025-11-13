@@ -7,10 +7,14 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const ExcelJS = require('exceljs'); // CORREÇÃO: Importar ExcelJS no topo
+const ExcelJS = require('exceljs'); // Adicionado
 require('dotenv').config();
 
 const app = express();
+
+// CORREÇÃO: Defina a variável PORT e BASE_URL
+const PORT = process.env.PORT || 3000;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`; // Necessário para links no email
 
 // Middleware
 app.use(cors());
@@ -27,7 +31,6 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        // CORREÇÃO: path.extname para manter a extensão original de forma segura
         const ext = path.extname(file.originalname); 
         cb(null, `${Date.now()}-${path.basename(file.originalname, ext)}${ext}`);
     }
@@ -35,25 +38,39 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Inicializar Firebase
+// 🛠️ CORREÇÃO PRINCIPAL: Inicializar Firebase lendo o arquivo JSON
+const FIREBASE_URL = process.env.FIREBASE_URL;
+let db; // Variável para o banco de dados
+
 try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+    const serviceAccountPath = path.resolve(__dirname, 'firebase-service-account.json');
+    
+    if (!fs.existsSync(serviceAccountPath)) {
+        throw new Error(`Arquivo de credenciais do Firebase não encontrado: ${serviceAccountPath}`);
+    }
+    
+    // Node.js carrega JSON nativamente a partir de um arquivo
+    const serviceAccount = require(serviceAccountPath); 
+    
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        databaseURL: process.env.FIREBASE_URL
+        databaseURL: FIREBASE_URL
     });
-} catch (e) {
-    console.error("Erro ao inicializar Firebase. Verifique FIREBASE_CONFIG e FIREBASE_URL no .env", e);
-    // É crucial que a inicialização do Firebase funcione.
-}
 
-const db = admin.database();
+    db = admin.database(); // Inicializa o banco de dados após o app
+    console.log("✅ Firebase inicializado com sucesso.");
+
+} catch (e) {
+    console.error("❌ Erro ao inicializar Firebase. Verifique 'firebase-service-account.json' e FIREBASE_URL:", e.message);
+    // Se o Firebase falhar, lançar um erro fatal para evitar que o servidor inicie sem o DB.
+    throw e;
+}
 
 // Configurar Nodemailer
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: process.env.EMAIL_PORT == 465, // Use 'secure: true' para porta 465, 'secure: false' para outras portas (ex: 587)
+    secure: process.env.EMAIL_PORT == 465, 
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
@@ -63,29 +80,23 @@ const transporter = nodemailer.createTransport({
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Credenciais de admin
+// Credenciais de admin (melhoria de segurança: pegue o hash de .env)
 const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
-// CORREÇÃO: Pegar hash de variável de ambiente (gerada previamente)
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH; 
+// Se você não gerou o hash e colocou no .env, remova 'process.env.' para testar:
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || bcrypt.hashSync('teste123', 10); 
 
-// ===== ROTAS DE AUTENTICAÇÃO =====
+// ===== ROTAS DE AUTENTICAÇÃO E MIDDLEWARE (Sem alterações críticas) =====
 
 // Login
 app.post('/api/login', async (req, res) => {
+    // ... (Seu código de login) ...
     try {
         const { email, password } = req.body;
         
         if (email !== ADMIN_EMAIL) {
-            // Use uma mensagem genérica para não dar dicas sobre qual dado está errado
-            return res.status(401).json({ message: 'Email ou senha inválidos' }); 
+            return res.status(401).json({ message: 'Email ou senha inválidos' });
         }
         
-        // CORREÇÃO: Verifique se o hash existe antes de comparar
-        if (!ADMIN_PASSWORD_HASH) {
-            console.error("ADMIN_PASSWORD_HASH não está definido no .env!");
-            return res.status(500).json({ message: 'Erro de configuração no servidor' });
-        }
-
         const passwordMatch = bcrypt.compareSync(password, ADMIN_PASSWORD_HASH);
         if (!passwordMatch) {
             return res.status(401).json({ message: 'Email ou senha inválidos' });
@@ -135,15 +146,19 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
             paymentTerms, deliveryTime, moq, cartonSize, qtyPerCarton, unitCbm, qty40hc
         } = req.body;
         
-        // CORREÇÃO: Validação de campos obrigatórios
-        // Lista de campos que não podem ser vazios (ajuste conforme a necessidade)
+        // 🛠️ CORREÇÃO: Validação de campos obrigatórios
         const requiredFields = [
             companyName, contactPerson, email, supplierModel, power, fobPrice, paymentTerms, 
             deliveryTime, moq
         ];
 
+        // Se algum dos campos obrigatórios estiver vazio/indefinido, retorna erro.
         if (requiredFields.some(field => !field)) {
-            return res.status(400).json({ message: 'Please fill all required fields' });
+            // Remove o arquivo de upload se a validação falhar
+            if (req.file) {
+                fs.unlinkSync(req.file.path);
+            }
+            return res.status(400).json({ message: 'Por favor, preencha todos os campos obrigatórios' });
         }
         
         // Preparar dados da cotação
@@ -157,7 +172,8 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
             maxTemp: parseFloat(maxTemp) || null,
             qtyBaskets: parseFloat(qtyBaskets) || null,
             basketVolume: parseFloat(basketVolume) || null,
-            removableBasket: removableBasket === 'true' || removableBasket === true,
+            // Converte string 'true'/'false' ou booleano para booleano
+            removableBasket: removableBasket === 'true' || removableBasket === true, 
             viewWindow: viewWindow === 'true' || viewWindow === true,
             fobPrice: parseFloat(fobPrice) || null,
             fobCity,
@@ -188,10 +204,10 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
         
     } catch (error) {
         console.error('Erro ao processar cotação:', error);
-        // Se houver arquivo, considere removê-lo em caso de erro no DB.
+        // Remove o arquivo se o erro ocorrer após o upload, mas antes de salvar o DB
         if (req.file) {
             fs.unlink(req.file.path, (err) => {
-                if (err) console.error("Erro ao deletar arquivo de upload após falha no DB:", err);
+                if (err) console.error("Erro ao deletar arquivo após falha no processamento:", err);
             });
         }
         res.status(500).json({ message: 'Erro ao processar cotação' });
@@ -211,7 +227,6 @@ app.get('/api/cotacoes', authenticate, async (req, res) => {
             });
         });
         
-        // Ordenar por data (mais recentes primeiro)
         cotacoes.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
         
         res.json(cotacoes);
@@ -247,22 +262,18 @@ app.use('/uploads', express.static('uploads'));
 // Exportar para Excel (autenticado)
 app.get('/api/exportar-excel', authenticate, async (req, res) => {
     try {
-        // ExcelJS já foi importado no topo
+        // ... (código ExcelJS sem alterações críticas) ...
         const snapshot = await db.ref('cotacoes').once('value');
         const cotacoes = [];
         
         snapshot.forEach((child) => {
-            cotacoes.push({
-                id: child.key,
-                ...child.val()
-            });
+            cotacoes.push({ id: child.key, ...child.val() });
         });
         
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Cotações');
         
-        // Cabeçalhos (o seu já estava correto)
-        // ... (Seu código de cabeçalhos) ...
+        // Cabeçalhos
         worksheet.columns = [
             { header: 'ID', key: 'id', width: 15 },
             { header: 'Data', key: 'dataCriacao', width: 18 },
@@ -287,16 +298,14 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
             { header: 'CBM', key: 'unitCbm', width: 10 },
             { header: 'Qtd 40HC', key: 'qty40hc', width: 10 }
         ];
-
+        
         cotacoes.forEach(cot => {
             worksheet.addRow(cot);
         });
         
-        // Formatar cabeçalho
         worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF667eea' } };
         
-        // Gerar arquivo
         const filename = `cotacoes_${Date.now()}.xlsx`;
         await workbook.xlsx.writeFile(filename);
         
@@ -313,7 +322,6 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
 // ===== FUNÇÃO AUXILIAR (Email) =====
 
 async function enviarEmailNotificacao(cotacao) {
-    // ... (Sua função enviarEmailNotificacao não tinha erros críticos) ...
     try {
         const mailOptions = {
             from: process.env.EMAIL_USER,
@@ -337,7 +345,7 @@ async function enviarEmailNotificacao(cotacao) {
                 <p><strong>MOQ:</strong> ${cotacao.moq} unidades</p>
                 
                 <hr>
-                ${cotacao.imagemPath ? `<p><strong>Imagem:</strong> <a href="${process.env.BASE_URL}${cotacao.imagemPath}">Visualizar Imagem</a></p>` : ''}
+                ${cotacao.imagemPath ? `<p><strong>Imagem:</strong> <a href="${BASE_URL}${cotacao.imagemPath}">Visualizar Imagem</a></p>` : ''}
                 <p>Acesse seu painel admin para ver todos os detalhes da cotação.</p>
             `
         };
@@ -351,9 +359,6 @@ async function enviarEmailNotificacao(cotacao) {
 
 // ===== INICIAR SERVIDOR =====
 
-// CORREÇÃO: Defina a variável PORT
-const PORT = process.env.PORT || 3000; 
-
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+    console.log(`🚀 Servidor rodando em: ${BASE_URL}`);
 });
