@@ -1,0 +1,1 @@
+# Arquivo de ambiente com senhas e chaves secretas. NUNCA ENVIE. .env # Pasta de dependências do Node.js, instalada automaticamente. /node_modules # Arquivos temporários de upload (não devem ser versionados). /uploads /tmp # Arquivos de log e de diagnóstico. npm-debug.log yarn-error.log # Arquivos de Excel gerados localmente para teste. *.xlsx
