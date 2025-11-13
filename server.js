@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const ExcelJS = require('exceljs'); // CORREÇÃO: Importar ExcelJS no topo
 require('dotenv').config();
 
 const app = express();
@@ -26,18 +27,25 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
+        // CORREÇÃO: path.extname para manter a extensão original de forma segura
+        const ext = path.extname(file.originalname); 
+        cb(null, `${Date.now()}-${path.basename(file.originalname, ext)}${ext}`);
     }
 });
 
 const upload = multer({ storage });
 
 // Inicializar Firebase
-const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.FIREBASE_URL
-});
+try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: process.env.FIREBASE_URL
+    });
+} catch (e) {
+    console.error("Erro ao inicializar Firebase. Verifique FIREBASE_CONFIG e FIREBASE_URL no .env", e);
+    // É crucial que a inicialização do Firebase funcione.
+}
 
 const db = admin.database();
 
@@ -45,7 +53,7 @@ const db = admin.database();
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: false,
+    secure: process.env.EMAIL_PORT == 465, // Use 'secure: true' para porta 465, 'secure: false' para outras portas (ex: 587)
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
@@ -55,9 +63,10 @@ const transporter = nodemailer.createTransport({
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Credenciais de admin (você vai usar diego.coelho@souenergy.com.br)
+// Credenciais de admin
 const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
-const ADMIN_PASSWORD_HASH = bcrypt.hashSync('teste123', 10);
+// CORREÇÃO: Pegar hash de variável de ambiente (gerada previamente)
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH; 
 
 // ===== ROTAS DE AUTENTICAÇÃO =====
 
@@ -67,9 +76,16 @@ app.post('/api/login', async (req, res) => {
         const { email, password } = req.body;
         
         if (email !== ADMIN_EMAIL) {
-            return res.status(401).json({ message: 'Email ou senha inválidos' });
+            // Use uma mensagem genérica para não dar dicas sobre qual dado está errado
+            return res.status(401).json({ message: 'Email ou senha inválidos' }); 
         }
         
+        // CORREÇÃO: Verifique se o hash existe antes de comparar
+        if (!ADMIN_PASSWORD_HASH) {
+            console.error("ADMIN_PASSWORD_HASH não está definido no .env!");
+            return res.status(500).json({ message: 'Erro de configuração no servidor' });
+        }
+
         const passwordMatch = bcrypt.compareSync(password, ADMIN_PASSWORD_HASH);
         if (!passwordMatch) {
             return res.status(401).json({ message: 'Email ou senha inválidos' });
@@ -114,30 +130,20 @@ const authenticate = (req, res, next) => {
 app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
     try {
         const {
-            companyName,
-            contactPerson,
-            email,
-            supplierModel,
-            power,
-            minTemp,
-            maxTemp,
-            qtyBaskets,
-            basketVolume,
-            removableBasket,
-            viewWindow,
-            fobPrice,
-            fobCity,
-            paymentTerms,
-            deliveryTime,
-            moq,
-            cartonSize,
-            qtyPerCarton,
-            unitCbm,
-            qty40hc
+            companyName, contactPerson, email, supplierModel, power, minTemp, maxTemp, 
+            qtyBaskets, basketVolume, removableBasket, viewWindow, fobPrice, fobCity, 
+            paymentTerms, deliveryTime, moq, cartonSize, qtyPerCarton, unitCbm, qty40hc
         } = req.body;
         
-        // Validação básica
-            return res.status(400).json({ message: 'Please fill all fields' });
+        // CORREÇÃO: Validação de campos obrigatórios
+        // Lista de campos que não podem ser vazios (ajuste conforme a necessidade)
+        const requiredFields = [
+            companyName, contactPerson, email, supplierModel, power, fobPrice, paymentTerms, 
+            deliveryTime, moq
+        ];
+
+        if (requiredFields.some(field => !field)) {
+            return res.status(400).json({ message: 'Please fill all required fields' });
         }
         
         // Preparar dados da cotação
@@ -146,22 +152,22 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
             contactPerson,
             email,
             supplierModel,
-            power: parseFloat(power),
-            minTemp: parseFloat(minTemp),
-            maxTemp: parseFloat(maxTemp),
-            qtyBaskets: parseFloat(qtyBaskets),
-            basketVolume: parseFloat(basketVolume),
-            removableBasket,
-            viewWindow,
-            fobPrice: parseFloat(fobPrice),
+            power: parseFloat(power) || null,
+            minTemp: parseFloat(minTemp) || null,
+            maxTemp: parseFloat(maxTemp) || null,
+            qtyBaskets: parseFloat(qtyBaskets) || null,
+            basketVolume: parseFloat(basketVolume) || null,
+            removableBasket: removableBasket === 'true' || removableBasket === true,
+            viewWindow: viewWindow === 'true' || viewWindow === true,
+            fobPrice: parseFloat(fobPrice) || null,
             fobCity,
             paymentTerms,
-            deliveryTime: parseInt(deliveryTime),
-            moq: parseInt(moq),
+            deliveryTime: parseInt(deliveryTime) || null,
+            moq: parseInt(moq) || null,
             cartonSize,
-            qtyPerCarton: parseInt(qtyPerCarton),
-            unitCbm: parseFloat(unitCbm),
-            qty40hc: parseInt(qty40hc),
+            qtyPerCarton: parseInt(qtyPerCarton) || null,
+            unitCbm: parseFloat(unitCbm) || null,
+            qty40hc: parseInt(qty40hc) || null,
             imagemFileName: req.file ? req.file.filename : null,
             imagemPath: req.file ? `/uploads/${req.file.filename}` : null,
             dataCriacao: new Date().toISOString(),
@@ -182,6 +188,12 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
         
     } catch (error) {
         console.error('Erro ao processar cotação:', error);
+        // Se houver arquivo, considere removê-lo em caso de erro no DB.
+        if (req.file) {
+            fs.unlink(req.file.path, (err) => {
+                if (err) console.error("Erro ao deletar arquivo de upload após falha no DB:", err);
+            });
+        }
         res.status(500).json({ message: 'Erro ao processar cotação' });
     }
 });
@@ -235,7 +247,7 @@ app.use('/uploads', express.static('uploads'));
 // Exportar para Excel (autenticado)
 app.get('/api/exportar-excel', authenticate, async (req, res) => {
     try {
-        const ExcelJS = require('exceljs');
+        // ExcelJS já foi importado no topo
         const snapshot = await db.ref('cotacoes').once('value');
         const cotacoes = [];
         
@@ -249,7 +261,8 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Cotações');
         
-        // Cabeçalhos
+        // Cabeçalhos (o seu já estava correto)
+        // ... (Seu código de cabeçalhos) ...
         worksheet.columns = [
             { header: 'ID', key: 'id', width: 15 },
             { header: 'Data', key: 'dataCriacao', width: 18 },
@@ -274,7 +287,7 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
             { header: 'CBM', key: 'unitCbm', width: 10 },
             { header: 'Qtd 40HC', key: 'qty40hc', width: 10 }
         ];
-        
+
         cotacoes.forEach(cot => {
             worksheet.addRow(cot);
         });
@@ -297,9 +310,10 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
     }
 });
 
-// ===== FUNÇÃO AUXILIAR =====
+// ===== FUNÇÃO AUXILIAR (Email) =====
 
 async function enviarEmailNotificacao(cotacao) {
+    // ... (Sua função enviarEmailNotificacao não tinha erros críticos) ...
     try {
         const mailOptions = {
             from: process.env.EMAIL_USER,
@@ -317,12 +331,13 @@ async function enviarEmailNotificacao(cotacao) {
                 <p><strong>Modelo:</strong> ${cotacao.supplierModel}</p>
                 
                 <h3>💰 Preço e Logística</h3>
-                <p><strong>FOB Price:</strong> $${cotacao.fobPrice.toFixed(2)}</p>
+                <p><strong>FOB Price:</strong> $${(cotacao.fobPrice || 0).toFixed(2)}</p>
                 <p><strong>Cidade FOB:</strong> ${cotacao.fobCity}</p>
                 <p><strong>Lead Time:</strong> ${cotacao.deliveryTime} dias</p>
                 <p><strong>MOQ:</strong> ${cotacao.moq} unidades</p>
                 
                 <hr>
+                ${cotacao.imagemPath ? `<p><strong>Imagem:</strong> <a href="${process.env.BASE_URL}${cotacao.imagemPath}">Visualizar Imagem</a></p>` : ''}
                 <p>Acesse seu painel admin para ver todos os detalhes da cotação.</p>
             `
         };
@@ -336,6 +351,8 @@ async function enviarEmailNotificacao(cotacao) {
 
 // ===== INICIAR SERVIDOR =====
 
+// CORREÇÃO: Defina a variável PORT
+const PORT = process.env.PORT || 3000; 
 
 app.listen(PORT, () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
