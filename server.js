@@ -43,12 +43,12 @@ const db = admin.database();
 
 // Configurar Nodemailer
 const transporter = nodemailer.createTransport({
-    host: process.env.sandbox.smtp.mailtrap.io,
-    port: process.env.2525,
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
     secure: false,
     auth: {
-        user: process.env.3df3368d643006,
-        pass: process.env.d86f8b07a77303
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
     }
 });
 
@@ -136,7 +136,7 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
         } = req.body;
         
         // Validação básica
-            return res.status(400).json({ message: 'Campos obrigatórios não preenchidos' });
+            return res.status(400).json({ message: 'Please fill all fields' });
         }
         
         // Preparar dados da cotação
