@@ -11,16 +11,12 @@ require('dotenv').config();
 
 const app = express();
 
-// 6. Definição de PORT
-// 7. Definição de JWT_SECRET
-const JWT_SECRET = process.env.JWT_SECRET;
-
-// 2. Configuração de middleware
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 3. Configuração de multer para upload de arquivos
+// Configuração de upload
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = 'uploads';
@@ -36,39 +32,36 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// 4. Inicialização Firebase com variáveis de ambiente
-try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: process.env.FIREBASE_URL
-    });
-} catch (error) {
-    console.error('Erro ao inicializar Firebase:', error);
-    // Em um ambiente de produção, você pode querer sair do processo ou lidar com isso de forma mais robusta
-    process.exit(1); 
-}
+// Inicializar Firebase
+const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: process.env.FIREBASE_URL
+});
 
 const db = admin.database();
 
-// 5. Configuração Nodemailer
+// Configurar Nodemailer
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: false, // Use 'true' se o servidor de e-mail usar SSL/TLS (porta 465)
+    secure: false, // Use 'true' if your mail server uses SSL/TLS
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
     }
 });
 
-// 8. Credenciais admin
+// JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Credenciais de admin (você vai usar diego.coelho@souenergy.com.br)
 const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
-const ADMIN_PASSWORD_HASH = bcrypt.hashSync('teste123', 10); // Em produção, a senha deve vir de uma variável de ambiente ou ser mais segura
+const ADMIN_PASSWORD_HASH = bcrypt.hashSync('teste123', 10); // ATENÇÃO: Mudar para uma senha mais segura em produção
 
 // ===== ROTAS DE AUTENTICAÇÃO =====
 
-// 9. Rota POST /api/login com autenticação JWT
+// Login
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -93,12 +86,12 @@ app.post('/api/login', async (req, res) => {
             message: 'Login realizado com sucesso'
         });
     } catch (error) {
-        console.error('Erro no login:', error);
+        console.error('Erro login:', error);
         res.status(500).json({ message: 'Erro no servidor' });
     }
 });
 
-// 10. Middleware authenticate para proteger rotas
+// Middleware de autenticação
 const authenticate = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     
@@ -117,7 +110,7 @@ const authenticate = (req, res, next) => {
 
 // ===== ROTAS DE COTAÇÃO =====
 
-// 11. Rota POST /api/cotacao com validação COMPLETA de todos os campos
+// Enviar cotação (formulário)
 app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
     try {
         const {
@@ -143,8 +136,8 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
             qty40hc
         } = req.body;
         
-        // Validação completa de todos os campos
-            return res.status(400).json({ message: 'Por favor, preencha todos os campos obrigatórios.' });
+        // Validação básica - TODOS os campos são obrigatórios
+            return res.status(400).json({ message: 'Please fill all fields' });
         }
         
         // Preparar dados da cotação
@@ -158,8 +151,8 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
             maxTemp: parseFloat(maxTemp),
             qtyBaskets: parseFloat(qtyBaskets),
             basketVolume: parseFloat(basketVolume),
-            removableBasket: removableBasket === 'true', // Converte string para boolean
-            viewWindow: viewWindow === 'true', // Converte string para boolean
+            removableBasket,
+            viewWindow,
             fobPrice: parseFloat(fobPrice),
             fobCity,
             paymentTerms,
@@ -193,7 +186,7 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
     }
 });
 
-// 12. Rota GET /api/cotacoes com autenticação
+// Listar todas as cotações (autenticado)
 app.get('/api/cotacoes', authenticate, async (req, res) => {
     try {
         const snapshot = await db.ref('cotacoes').once('value');
@@ -216,7 +209,7 @@ app.get('/api/cotacoes', authenticate, async (req, res) => {
     }
 });
 
-// 13. Rota GET /api/cotacao/:id com autenticação
+// Obter uma cotação específica (autenticado)
 app.get('/api/cotacao/:id', authenticate, async (req, res) => {
     try {
         const snapshot = await db.ref(`cotacoes/${req.params.id}`).once('value');
@@ -231,18 +224,18 @@ app.get('/api/cotacao/:id', authenticate, async (req, res) => {
             ...cotacao
         });
     } catch (error) {
-        console.error('Erro ao obter cotação:', error);
+        console.error('Erro:', error);
         res.status(500).json({ message: 'Erro ao obter cotação' });
     }
 });
 
-// 16. Middleware para servir arquivos /uploads
+// Servir imagens (público)
 app.use('/uploads', express.static('uploads'));
 
-// 14. Rota GET /api/exportar-excel com autenticação
+// Exportar para Excel (autenticado)
 app.get('/api/exportar-excel', authenticate, async (req, res) => {
     try {
-        const ExcelJS = require('exceljs'); // Importa aqui para garantir que só é carregado quando necessário
+        const ExcelJS = require('exceljs'); // Importação dentro da rota para evitar erro se não for usado
         const snapshot = await db.ref('cotacoes').once('value');
         const cotacoes = [];
         
@@ -293,22 +286,20 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
         // Gerar arquivo
         const filename = `cotacoes_${Date.now()}.xlsx`;
         // Salva o arquivo temporariamente no sistema de arquivos do Vercel
-        await workbook.xlsx.writeFile(filename); 
+        await workbook.xlsx.writeFile(`/tmp/${filename}`); 
         
-        res.download(filename, () => {
-            // Remove o arquivo após o download
-            fs.unlinkSync(filename); 
+        res.download(`/tmp/${filename}`, filename, () => {
+            fs.unlinkSync(`/tmp/${filename}`); // Remove o arquivo após o download
         });
         
     } catch (error) {
-        console.error('Erro ao exportar para Excel:', error);
-        res.status(500).json({ message: 'Erro ao exportar para Excel' });
+        console.error('Erro ao exportar:', error);
+        res.status(500).json({ message: 'Erro ao exportar' });
     }
 });
 
 // ===== FUNÇÃO AUXILIAR =====
 
-// 15. Função enviarEmailNotificacao com template HTML
 async function enviarEmailNotificacao(cotacao) {
     try {
         const mailOptions = {
@@ -338,13 +329,13 @@ async function enviarEmailNotificacao(cotacao) {
         };
         
         await transporter.sendMail(mailOptions);
-        console.log('Email de notificação enviado com sucesso');
+        console.log('Email enviado com sucesso');
     } catch (error) {
-        console.error('Erro ao enviar email de notificação:', error);
+        console.error('Erro ao enviar email:', error);
     }
 }
 
-// 17. Inicialização do servidor ao final
+// ===== INICIAR SERVIDOR =====
 app.listen(PORT, () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
