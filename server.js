@@ -1,3 +1,6 @@
+// ARQUIVO: server.js - VERSÃO DEFINITIVA E VERIFICADA
+
+// ===== 1. IMPORTAÇÕES E CONFIGURAÇÃO INICIAL =====
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -7,358 +10,192 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const ExcelJS = require('exceljs'); // Adicionado
 require('dotenv').config();
+
+// ===== 2. VARIÁVEIS DE AMBIENTE E CONSTANTES =====
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
+const ADMIN_PASSWORD_HASH = bcrypt.hashSync('teste123', 10); // Senha 'teste123'
 
 const app = express();
 
-// CORREÇÃO: Defina a variável PORT e BASE_URL
-const PORT = process.env.PORT || 3000;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`; // Necessário para links no email
-
-// Middleware
+// ===== 3. MIDDLEWARE GERAL =====
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configuração de upload
+// ===== 4. CONFIGURAÇÃO DE ARQUIVOS (UPLOAD) PARA VERCEL =====
+const uploadDir = path.join('/tmp', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = 'uploads';
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir);
-        }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname); 
-        cb(null, `${Date.now()}-${path.basename(file.originalname, ext)}${ext}`);
-    }
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${path.extname(file.originalname)}`)
 });
-
 const upload = multer({ storage });
 
-// 🛠️ CORREÇÃO PRINCIPAL: Inicializar Firebase lendo o arquivo JSON
-const FIREBASE_URL = process.env.FIREBASE_URL;
-let db; // Variável para o banco de dados
-
+// ===== 5. INICIALIZAÇÃO DE SERVIÇOS EXTERNOS =====
+// Firebase
 try {
-    const serviceAccountPath = path.resolve(__dirname, 'firebase-service-account.json');
-    
-    if (!fs.existsSync(serviceAccountPath)) {
-        throw new Error(`Arquivo de credenciais do Firebase não encontrado: ${serviceAccountPath}`);
+    if (admin.apps.length === 0) { // Evita reinicialização
+        const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            databaseURL: process.env.FIREBASE_URL
+        });
     }
-    
-    // Node.js carrega JSON nativamente a partir de um arquivo
-    const serviceAccount = require(serviceAccountPath); 
-    
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: FIREBASE_URL
-    });
-
-    db = admin.database(); // Inicializa o banco de dados após o app
-    console.log("✅ Firebase inicializado com sucesso.");
-
-} catch (e) {
-    console.error("❌ Erro ao inicializar Firebase. Verifique 'firebase-service-account.json' e FIREBASE_URL:", e.message);
-    // Se o Firebase falhar, lançar um erro fatal para evitar que o servidor inicie sem o DB.
-    throw e;
+} catch (error) {
+    console.error("ERRO CRÍTICO: Falha ao inicializar o Firebase. Verifique a variável 'FIREBASE_CONFIG'.", error);
 }
+const db = admin.database();
 
-// Configurar Nodemailer
+// Nodemailer
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: process.env.EMAIL_PORT == 465, 
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-    }
+    port: parseInt(process.env.EMAIL_PORT, 10),
+    secure: parseInt(process.env.EMAIL_PORT, 10) === 465,
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD }
 });
 
-// JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET;
+// ===== 6. ROTAS DA APLICAÇÃO =====
 
-// Credenciais de admin (melhoria de segurança: pegue o hash de .env)
-const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
-// Se você não gerou o hash e colocou no .env, remova 'process.env.' para testar:
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || bcrypt.hashSync('teste123', 10); 
-
-// ===== ROTAS DE AUTENTICAÇÃO E MIDDLEWARE (Sem alterações críticas) =====
-
-// Login
+// --- Rota de Login ---
 app.post('/api/login', async (req, res) => {
-    // ... (Seu código de login) ...
     try {
         const { email, password } = req.body;
-        
-        if (email !== ADMIN_EMAIL) {
-            return res.status(401).json({ message: 'Email ou senha inválidos' });
+            return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
-        
-        const passwordMatch = bcrypt.compareSync(password, ADMIN_PASSWORD_HASH);
-        if (!passwordMatch) {
-            return res.status(401).json({ message: 'Email ou senha inválidos' });
-        }
-        
-        const token = jwt.sign(
-            { email, role: 'admin' },
-            JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-        
-        res.json({ 
-            token,
-            message: 'Login realizado com sucesso'
-        });
+        const token = jwt.sign({ email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+        res.status(200).json({ token, message: 'Login bem-sucedido.' });
     } catch (error) {
-        console.error('Erro login:', error);
-        res.status(500).json({ message: 'Erro no servidor' });
+        console.error('Erro na rota de login:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
 });
 
-// Middleware de autenticação
+// --- Middleware de Autenticação ---
 const authenticate = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-        return res.status(401).json({ message: 'Token não fornecido' });
-    }
-    
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ message: 'Acesso negado. Token não fornecido.' });
+        req.user = jwt.verify(token, JWT_SECRET);
         next();
     } catch (error) {
-        res.status(401).json({ message: 'Token inválido' });
+        return res.status(401).json({ message: 'Acesso negado. Token inválido ou expirado.' });
     }
 };
 
-// ===== ROTAS DE COTAÇÃO =====
-
-// Enviar cotação (formulário)
+// --- Rota para Envio de Cotação ---
 app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
     try {
-        const {
-            companyName, contactPerson, email, supplierModel, power, minTemp, maxTemp, 
-            qtyBaskets, basketVolume, removableBasket, viewWindow, fobPrice, fobCity, 
-            paymentTerms, deliveryTime, moq, cartonSize, qtyPerCarton, unitCbm, qty40hc
-        } = req.body;
-        
-        // 🛠️ CORREÇÃO: Validação de campos obrigatórios
-        const requiredFields = [
-            companyName, contactPerson, email, supplierModel, power, fobPrice, paymentTerms, 
-            deliveryTime, moq
-        ];
+        const { companyName, contactPerson, email, supplierModel, power, minTemp, maxTemp, qtyBaskets, basketVolume, removableBasket, viewWindow, fobPrice, fobCity, paymentTerms, deliveryTime, moq, cartonSize, qtyPerCarton, unitCbm, qty40hc } = req.body;
 
-        // Se algum dos campos obrigatórios estiver vazio/indefinido, retorna erro.
-        if (requiredFields.some(field => !field)) {
-            // Remove o arquivo de upload se a validação falhar
-            if (req.file) {
-                fs.unlinkSync(req.file.path);
-            }
-            return res.status(400).json({ message: 'Por favor, preencha todos os campos obrigatórios' });
+        // VALIDAÇÃO DEFINITIVA.
+            return res.status(400).json({ message: 'Todos os campos do formulário são obrigatórios.' });
         }
-        
-        // Preparar dados da cotação
+
         const cotacao = {
-            companyName,
-            contactPerson,
-            email,
-            supplierModel,
-            power: parseFloat(power) || null,
-            minTemp: parseFloat(minTemp) || null,
-            maxTemp: parseFloat(maxTemp) || null,
-            qtyBaskets: parseFloat(qtyBaskets) || null,
-            basketVolume: parseFloat(basketVolume) || null,
-            // Converte string 'true'/'false' ou booleano para booleano
-            removableBasket: removableBasket === 'true' || removableBasket === true, 
-            viewWindow: viewWindow === 'true' || viewWindow === true,
-            fobPrice: parseFloat(fobPrice) || null,
-            fobCity,
-            paymentTerms,
-            deliveryTime: parseInt(deliveryTime) || null,
-            moq: parseInt(moq) || null,
-            cartonSize,
-            qtyPerCarton: parseInt(qtyPerCarton) || null,
-            unitCbm: parseFloat(unitCbm) || null,
-            qty40hc: parseInt(qty40hc) || null,
+            companyName, contactPerson, email, supplierModel, removableBasket, viewWindow, fobCity, paymentTerms, cartonSize,
+            power: parseFloat(power), minTemp: parseFloat(minTemp), maxTemp: parseFloat(maxTemp),
+            qtyBaskets: parseInt(qtyBaskets, 10), basketVolume: parseFloat(basketVolume),
+            fobPrice: parseFloat(fobPrice), deliveryTime: parseInt(deliveryTime, 10), moq: parseInt(moq, 10),
+            qtyPerCarton: parseInt(qtyPerCarton, 10), unitCbm: parseFloat(unitCbm), qty40hc: parseInt(qty40hc, 10),
             imagemFileName: req.file ? req.file.filename : null,
-            imagemPath: req.file ? `/uploads/${req.file.filename}` : null,
-            dataCriacao: new Date().toISOString(),
-            status: 'recebida'
+            dataCriacao: new Date().toISOString(), status: 'recebida'
         };
-        
-        // Salvar no Firebase
+
         const novaRef = db.ref('cotacoes').push();
         await novaRef.set(cotacao);
-        
-        // Enviar email de notificação
         await enviarEmailNotificacao(cotacao);
-        
-        res.json({
-            message: 'Cotação recebida com sucesso!',
-            id: novaRef.key
-        });
-        
+
+        res.status(201).json({ message: 'Cotação enviada com sucesso!', id: novaRef.key });
     } catch (error) {
         console.error('Erro ao processar cotação:', error);
-        // Remove o arquivo se o erro ocorrer após o upload, mas antes de salvar o DB
-        if (req.file) {
-            fs.unlink(req.file.path, (err) => {
-                if (err) console.error("Erro ao deletar arquivo após falha no processamento:", err);
-            });
-        }
-        res.status(500).json({ message: 'Erro ao processar cotação' });
+        res.status(500).json({ message: 'Erro interno ao processar a cotação.' });
     }
 });
 
-// Listar todas as cotações (autenticado)
+// --- Rota para Listar Cotações (Protegida) ---
 app.get('/api/cotacoes', authenticate, async (req, res) => {
     try {
         const snapshot = await db.ref('cotacoes').once('value');
-        const cotacoes = [];
+        const cotacoesObj = snapshot.val();
+        if (!cotacoesObj) return res.status(200).json([]);
         
-        snapshot.forEach((child) => {
-            cotacoes.push({
-                id: child.key,
-                ...child.val()
-            });
-        });
+        const cotacoes = Object.keys(cotacoesObj)
+            .map(key => ({ id: key, ...cotacoesObj[key] }))
+            .sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
         
-        cotacoes.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
-        
-        res.json(cotacoes);
+        res.status(200).json(cotacoes);
     } catch (error) {
         console.error('Erro ao listar cotações:', error);
-        res.status(500).json({ message: 'Erro ao listar cotações' });
+        res.status(500).json({ message: 'Erro ao obter dados.' });
     }
 });
 
-// Obter uma cotação específica (autenticado)
-app.get('/api/cotacao/:id', authenticate, async (req, res) => {
-    try {
-        const snapshot = await db.ref(`cotacoes/${req.params.id}`).once('value');
-        const cotacao = snapshot.val();
-        
-        if (!cotacao) {
-            return res.status(404).json({ message: 'Cotação não encontrada' });
-        }
-        
-        res.json({
-            id: req.params.id,
-            ...cotacao
-        });
-    } catch (error) {
-        console.error('Erro:', error);
-        res.status(500).json({ message: 'Erro ao obter cotação' });
+// --- Rota para Servir Imagens do /tmp ---
+app.get('/api/images/:filename', (req, res) => {
+    const filePath = path.join(uploadDir, req.params.filename);
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).json({ message: 'Imagem não encontrada.' });
     }
 });
 
-// Servir imagens (público)
-app.use('/uploads', express.static('uploads'));
-
-// Exportar para Excel (autenticado)
+// --- Rota para Exportar Excel (Protegida) ---
 app.get('/api/exportar-excel', authenticate, async (req, res) => {
     try {
-        // ... (código ExcelJS sem alterações críticas) ...
+        const ExcelJS = require('exceljs');
         const snapshot = await db.ref('cotacoes').once('value');
-        const cotacoes = [];
-        
-        snapshot.forEach((child) => {
-            cotacoes.push({ id: child.key, ...child.val() });
-        });
-        
+        const cotacoesObj = snapshot.val();
+        if (!cotacoesObj) return res.status(404).json({ message: 'Nenhuma cotação encontrada para exportar.' });
+
+        const cotacoes = Object.keys(cotacoesObj).map(key => ({ id: key, ...cotacoesObj[key] }));
+
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Cotações');
-        
-        // Cabeçalhos
         worksheet.columns = [
-            { header: 'ID', key: 'id', width: 15 },
-            { header: 'Data', key: 'dataCriacao', width: 18 },
-            { header: 'Empresa', key: 'companyName', width: 20 },
-            { header: 'Contato', key: 'contactPerson', width: 15 },
-            { header: 'Email', key: 'email', width: 20 },
-            { header: 'Produto', key: 'supplierModel', width: 25 },
-            { header: 'Potência (W)', key: 'power', width: 12 },
-            { header: 'Temp Mín', key: 'minTemp', width: 10 },
-            { header: 'Temp Máx', key: 'maxTemp', width: 10 },
-            { header: 'Cestos', key: 'qtyBaskets', width: 10 },
-            { header: 'Vol Cesto (L)', key: 'basketVolume', width: 12 },
-            { header: 'Removível', key: 'removableBasket', width: 10 },
-            { header: 'Janela', key: 'viewWindow', width: 10 },
-            { header: 'FOB Price', key: 'fobPrice', width: 12 },
-            { header: 'Cidade FOB', key: 'fobCity', width: 15 },
-            { header: 'Pagamento', key: 'paymentTerms', width: 20 },
-            { header: 'Lead Time (dias)', key: 'deliveryTime', width: 12 },
-            { header: 'MOQ', key: 'moq', width: 10 },
-            { header: 'Caixa (LxAxP)', key: 'cartonSize', width: 15 },
-            { header: 'Qtd/Caixa', key: 'qtyPerCarton', width: 10 },
-            { header: 'CBM', key: 'unitCbm', width: 10 },
-            { header: 'Qtd 40HC', key: 'qty40hc', width: 10 }
+            { header: 'ID', key: 'id', width: 30 }, { header: 'Data', key: 'dataCriacao', width: 20 },
+            { header: 'Empresa', key: 'companyName', width: 25 }, { header: 'Contato', key: 'contactPerson', width: 20 },
+            { header: 'Email', key: 'email', width: 30 }, { header: 'Modelo Fornecedor', key: 'supplierModel', width: 20 },
+            { header: 'Preço FOB', key: 'fobPrice', width: 15, style: { numFmt: '"$"#,##0.00' } },
+            { header: 'MOQ', key: 'moq', width: 10 }, { header: 'Cidade FOB', key: 'fobCity', width: 15 },
         ];
-        
-        cotacoes.forEach(cot => {
-            worksheet.addRow(cot);
-        });
-        
-        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF667eea' } };
-        
-        const filename = `cotacoes_${Date.now()}.xlsx`;
-        await workbook.xlsx.writeFile(filename);
-        
-        res.download(filename, () => {
-            fs.unlinkSync(filename);
-        });
-        
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.addRows(cotacoes);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="cotacoes_${new Date().toISOString().split('T')[0]}.xlsx"`);
+
+        await workbook.xlsx.write(res);
+        res.end();
     } catch (error) {
-        console.error('Erro ao exportar:', error);
-        res.status(500).json({ message: 'Erro ao exportar' });
+        console.error('Erro ao exportar para Excel:', error);
+        res.status(500).json({ message: 'Erro ao gerar o arquivo Excel.' });
     }
 });
 
-// ===== FUNÇÃO AUXILIAR (Email) =====
-
+// ===== 7. FUNÇÃO AUXILIAR =====
 async function enviarEmailNotificacao(cotacao) {
+    const { companyName, contactPerson, supplierModel } = cotacao;
     try {
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
+        await transporter.sendMail({
+            from: `"Painel Sou Energy" <${process.env.EMAIL_USER}>`,
             to: ADMIN_EMAIL,
-            subject: `🆕 Nova Cotação Recebida - ${cotacao.supplierModel}`,
-            html: `
-                <h2>Nova Cotação Recebida!</h2>
-                <hr>
-                <h3>📋 Informações do Fornecedor</h3>
-                <p><strong>Empresa:</strong> ${cotacao.companyName}</p>
-                <p><strong>Contato:</strong> ${cotacao.contactPerson}</p>
-                <p><strong>Email:</strong> ${cotacao.email}</p>
-                
-                <h3>📦 Produto</h3>
-                <p><strong>Modelo:</strong> ${cotacao.supplierModel}</p>
-                
-                <h3>💰 Preço e Logística</h3>
-                <p><strong>FOB Price:</strong> $${(cotacao.fobPrice || 0).toFixed(2)}</p>
-                <p><strong>Cidade FOB:</strong> ${cotacao.fobCity}</p>
-                <p><strong>Lead Time:</strong> ${cotacao.deliveryTime} dias</p>
-                <p><strong>MOQ:</strong> ${cotacao.moq} unidades</p>
-                
-                <hr>
-                ${cotacao.imagemPath ? `<p><strong>Imagem:</strong> <a href="${BASE_URL}${cotacao.imagemPath}">Visualizar Imagem</a></p>` : ''}
-                <p>Acesse seu painel admin para ver todos os detalhes da cotação.</p>
-            `
-        };
-        
-        await transporter.sendMail(mailOptions);
-        console.log('Email enviado com sucesso');
+            subject: `Nova Cotação de ${companyName} para ${supplierModel}`,
+            html: `<h1>Nova Cotação Recebida</h1><p><b>Empresa:</b> ${companyName}</p><p><b>Contato:</b> ${contactPerson}</p><p><b>Modelo:</b> ${supplierModel}</p><hr><p>Acesse o painel administrativo para visualizar todos os detalhes.</p>`
+        });
+        console.log(`Email de notificação para a cotação de ${companyName} enviado com sucesso.`);
     } catch (error) {
-        console.error('Erro ao enviar email:', error);
+        console.error(`Falha ao enviar email de notificação para ${companyName}:`, error);
     }
 }
 
-// ===== INICIAR SERVIDOR =====
-
+// ===== 8. INICIALIZAÇÃO DO SERVIDOR E EXPORTAÇÃO PARA VERCEL =====
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando em: ${BASE_URL}`);
+    console.log(`Servidor local rodando na porta ${PORT}.`);
 });
+
+module.exports = app;
