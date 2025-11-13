@@ -45,7 +45,7 @@ const db = admin.database();
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: false, // Use 'true' if your mail server uses SSL/TLS
+    secure: false,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
@@ -57,7 +57,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 // Credenciais de admin (você vai usar diego.coelho@souenergy.com.br)
 const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
-const ADMIN_PASSWORD_HASH = bcrypt.hashSync('teste123', 10); // ATENÇÃO: Mudar para uma senha mais segura em produção
+const ADMIN_PASSWORD_HASH = bcrypt.hashSync('teste123', 10);
 
 // ===== ROTAS DE AUTENTICAÇÃO =====
 
@@ -136,7 +136,7 @@ app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
             qty40hc
         } = req.body;
         
-        // Validação básica - TODOS os campos são obrigatórios
+        // Validação básica
             return res.status(400).json({ message: 'Please fill all fields' });
         }
         
@@ -235,7 +235,7 @@ app.use('/uploads', express.static('uploads'));
 // Exportar para Excel (autenticado)
 app.get('/api/exportar-excel', authenticate, async (req, res) => {
     try {
-        const ExcelJS = require('exceljs'); // Importação dentro da rota para evitar erro se não for usado
+        const ExcelJS = require('exceljs');
         const snapshot = await db.ref('cotacoes').once('value');
         const cotacoes = [];
         
@@ -285,11 +285,10 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
         
         // Gerar arquivo
         const filename = `cotacoes_${Date.now()}.xlsx`;
-        // Salva o arquivo temporariamente no sistema de arquivos do Vercel
-        await workbook.xlsx.writeFile(`/tmp/${filename}`); 
+        await workbook.xlsx.writeFile(filename);
         
-        res.download(`/tmp/${filename}`, filename, () => {
-            fs.unlinkSync(`/tmp/${filename}`); // Remove o arquivo após o download
+        res.download(filename, () => {
+            fs.unlinkSync(filename);
         });
         
     } catch (error) {
@@ -336,6 +335,8 @@ async function enviarEmailNotificacao(cotacao) {
 }
 
 // ===== INICIAR SERVIDOR =====
+
+
 app.listen(PORT, () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
