@@ -83,7 +83,14 @@ const upload = multer({ storage });
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+// --- Rota Raiz (Ponto de Verificação de Status) ---
+app.get('/', (req, res) => {
+    res.status(200).json({
+        status: 'online',
+        message: 'API da SouEnergy está operacional.',
+        documentacao_disponivel_em: '/api-docs' // Exemplo futuro
+    });
+});
 
 // --- Middleware de Autenticação (Proteção de Rotas) ---
 const authenticate = (req, res, next) => {
