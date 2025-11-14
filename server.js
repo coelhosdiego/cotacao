@@ -21,8 +21,8 @@ const FIREBASE_URL = process.env.FIREBASE_URL;
 
 // Admin Fixo (Requisito)
 const ADMIN_EMAIL = 'diego.coelho@souenergy.com.br';
-// Hash pre-calculado para a senha 'teste123' (Salt de 10)
-const ADMIN_PASSWORD_HASH = '$2a$10$tM3Nq6c3.hO0S8Xh7Z1A9e1P6Fw2B5D7G0H1I4J3K2L5M8N7O6P'; 
+// CORREÇÃO 1: Gera o hash da senha 'teste123' dinamicamente na inicialização
+const ADMIN_PASSWORD_HASH = bcrypt.hashSync('teste123', 10); 
 // Define o diretório temporário padrão da Vercel
 const TEMP_UPLOAD_DIR = path.join(os.tmpdir(), 'uploads');
 
@@ -185,27 +185,39 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/cotacao', upload.single('productPicture'), async (req, res) => {
     
     const file = req.file;
-    const {
-        companyName, contactPerson, email, supplierModel, power, minTemp, maxTemp, 
-        qtyBaskets, basketVolume, removableBasket, viewWindow, fobPrice, fobCity, 
-        paymentTerms, deliveryTime, moq, cartonSize, qtyPerCarton, unitCbm, qty40hc
-    } = req.body;
+    const body = req.body;
 
-    const requiredFields = [
-        companyName, contactPerson, email, supplierModel, power, fobPrice, paymentTerms, 
-        deliveryTime, moq
-        // Os demais são tratados como opcionais
+    // Lista de todas as chaves esperadas no body (todas são obrigatórias agora)
+    const allFields = [
+        'companyName', 'contactPerson', 'email', 'supplierModel', 'power', 'minTemp', 
+        'maxTemp', 'qtyBaskets', 'basketVolume', 'removableBasket', 'viewWindow', 
+        'fobPrice', 'fobCity', 'paymentTerms', 'deliveryTime', 'moq', 
+        'cartonSize', 'qtyPerCarton', 'unitCbm', 'qty40hc'
     ];
 
     try {
-        // Validação Crítica: Verifica se todos os campos obrigatórios estão preenchidos
-        if (requiredFields.some(field => !field || String(field).trim() === '')) {
+        // CORREÇÃO 3: Validação Crítica: Verifica se TODOS os campos estão presentes e preenchidos
+        const missingField = allFields.find(key => {
+            const value = body[key];
+            // Verifica se o campo está faltando ou se é uma string vazia após trim()
+            return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+        });
+
+        if (missingField) {
             // Se falhar, remove o arquivo temporário
             if (file) {
                 fs.unlinkSync(file.path);
             }
-            return res.status(400).json({ message: 'Por favor, preencha todos os campos obrigatórios (Empresa, Contato, Email, Modelo, Potência, Preço FOB, Termos, Prazo e MOQ).' });
+            // Mensagem de erro genérica conforme solicitado
+            return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
         }
+
+        // Desestruturação segura após a validação
+        const {
+            companyName, contactPerson, email, supplierModel, power, minTemp, maxTemp, 
+            qtyBaskets, basketVolume, removableBasket, viewWindow, fobPrice, fobCity, 
+            paymentTerms, deliveryTime, moq, cartonSize, qtyPerCarton, unitCbm, qty40hc
+        } = body;
         
         // Preparar e normalizar dados
         const cotacao = {
@@ -303,7 +315,7 @@ app.get('/api/cotacoes', authenticate, async (req, res) => {
 // GET /api/exportar-excel: Exportar dados para Excel
 app.get('/api/exportar-excel', authenticate, async (req, res) => {
     const filename = `cotacoes_export_${Date.now()}.xlsx`;
-    const tempFilePath = path.join(os.tmpdir(), filename);
+    // const tempFilePath = path.join(os.tmpdir(), filename); // CORREÇÃO 2: Removido
 
     try {
         const snapshot = await db.ref('cotacoes').once('value');
@@ -340,28 +352,15 @@ app.get('/api/exportar-excel', authenticate, async (req, res) => {
         worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0077B6' } };
         
-        // Escreve o arquivo no diretório /tmp
-        await workbook.xlsx.writeFile(tempFilePath);
+        // CORREÇÃO 2: Stream o Workbook diretamente para a resposta
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=' + filename);
         
-        // Envia o arquivo para download
-        res.download(tempFilePath, filename, (err) => {
-            if (err) {
-                console.error("Erro ao fazer download do arquivo Excel:", err);
-            }
-            // Garante a limpeza do arquivo temporário após o download
-            fs.unlink(tempFilePath, (unlinkErr) => {
-                if (unlinkErr) console.error("Erro ao deletar arquivo Excel temporário:", unlinkErr);
-            });
-        });
+        await workbook.xlsx.write(res);
+        res.end(); // Sinaliza que a resposta está completa
         
     } catch (error) {
         console.error('Erro ao exportar para Excel:', error);
-        // Tenta limpar o arquivo temporário em caso de falha antes do download
-        if (fs.existsSync(tempFilePath)) {
-             fs.unlink(tempFilePath, (unlinkErr) => {
-                if (unlinkErr) console.error("Erro ao deletar arquivo Excel temporário após falha:", unlinkErr);
-            });
-        }
         res.status(500).json({ message: 'Erro ao gerar o arquivo Excel.' });
     }
 });
